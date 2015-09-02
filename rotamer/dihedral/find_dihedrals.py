@@ -59,7 +59,7 @@ def map_dihedrals(residue_identities, residue_atom_map):
     :return dihedral_dict: Dictionary of dihedrals for each residue in molecule.residues. Entries are lists of lists,
     where each element of the sublist is an atom in molecule.residue.atoms.
     """
-    from topology.residue_sidechains import dihedral_chain
+    from driver.topology.residue_sidechains import dihedral_chain
     dihedral_dict = {}
     for residue, res_id in residue_identities.items():
         # If the residue doesn't have an entry in dihedral_chain, skip to the next residue.
