@@ -8,7 +8,7 @@ dirname = '/scratch/khs26/rotamer_lib_igb2/ARG/TRP/ALA/'
 
 # First test the order of atoms in lowest and in the topology file
 # with open('/scratch/khs26/rotamer_lib_igb2/ALA/ARG/TRP/lowest', 'r') as lowest:
-#     num_atoms = int(lowest.readline())
+# num_atoms = int(lowest.readline())
 #     energy = float(lowest.readline().split()[4])
 #     coords = []
 #     for line in lowest:
@@ -39,6 +39,7 @@ print dihedral_bonds
 def get_residue_atom_node(atom_name, residue, graph):
     return next(node for node in graph.nodes() if node.name == atom_name and node.residue == residue)
 
+
 dihedrals = {}
 for res in (res1, res2, res3):
     for atom_pair in dihedral_bonds[res]:
@@ -55,9 +56,11 @@ class LowestFile(object):
     """
     Reads in a lowest file and outputs a dictionary of structure coords, keyed by energy.
     """
+
     def __init__(self, input_filename):
         self.structures = self.read(input_filename)
         self.structures = self.normalise_structures(self.structures)
+
     def read(self, input_filename):
         '''
         Read the file...
@@ -68,20 +71,21 @@ class LowestFile(object):
             energy = []
             coords = []
             for line in input_file:
-            # Look for num_atoms
+                # Look for num_atoms
                 try:
                     if coords:
                         structures[energy] = coords
                     num_atoms = int(line)
                     coords = []
                 except ValueError:
-                # Look for energy
+                    # Look for energy
                     try:
                         energy = line.split()[4]
-                # Otherwise, read in the coords
+                        # Otherwise, read in the coords
                     except IndexError:
                         coords.append(line.split())
         return structures
+
     def normalise_structures(self, structures):
         '''
         Normalise the energy of a series of structures
@@ -93,7 +97,9 @@ class LowestFile(object):
             normalised[norm_energy] = structures[energy]
         return normalised
 
+
 myLowestFile = LowestFile(''.join((dirname, 'lowest')))
+
 
 def to_degrees(rads):
     return 180.0 * rads / np.pi

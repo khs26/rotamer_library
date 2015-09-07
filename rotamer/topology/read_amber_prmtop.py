@@ -6,8 +6,9 @@ import re
 import networkx as nx
 import numpy as np
 
-import pele.utils.elements as elem
-# import playground.rotamer.identify_residue as id_res
+import elements as elem
+from rotamer.io.amber import read_amber_restart
+
 
 class Atom(object):
     """ Atom defined from the AMBER topology file. """
@@ -34,8 +35,8 @@ class Atom(object):
     def __repr__(self):
         return str(self.index) + " " + self.element + " " + self.name
 
-    # def __cmp__(self, other):
-    #     return cmp(self.mass, other.mass)
+        # def __cmp__(self, other):
+        # return cmp(self.mass, other.mass)
 
 
 class Residue(object):
@@ -79,7 +80,7 @@ class Molecule(object):
 
     def read_coords(self, inpcrd_filename):
         """ Reads coordinates from a file into the Atoms of the Molecule. """
-        coords = np.array(read_amber_coords(inpcrd_filename)).reshape((-1, 3))
+        coords = np.array(read_amber_restart(inpcrd_filename)).reshape((-1, 3))
         # Sanity check that there are 3 coordinates per atom
         if len(coords) != self.num_atoms():
             raise ex.RuntimeError("Incorrect number of coordinates read into molecule.")
@@ -91,7 +92,8 @@ class Molecule(object):
         return len(self.atoms.nodes())
 
     def identify_residues(self):
-        import playground.rotamer.identify_residue as id_res
+        import identify_residue as id_res
+
         sidechains = id_res.find_sidechains(self)
         self.res_identities, self.atom_maps = id_res.residue_from_sidechain(sidechains)
         for res in self.res_identities:
@@ -291,9 +293,6 @@ def get_rotated_atoms(bond):
     return atom_1, atom_2, rotating_atoms
 
 
-
-
-
 def parse_topology_file(topology_filename):
     topology_data = read_topology(topology_filename)
     mol = create_molecule(topology_data)
@@ -311,11 +310,12 @@ def default_parameters(topology_filename):
 
 
 if __name__ == "__main__":
-    import playground.group_rotation.chirality as chirality
+    import chirality
+
     topology_data = read_topology("/home/khs26/flu.prmtop")
     mol = create_molecule(topology_data)
     mol.read_coords("/home/khs26/flu.inpcrd")
 
     # for atom in mol.atoms:
-    #     if atom.name == 'CA' and atom.residue.name == 'ILE':
+    # if atom.name == 'CA' and atom.residue.name == 'ILE':
     #         ca = atom

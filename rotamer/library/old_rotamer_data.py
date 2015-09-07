@@ -5,6 +5,7 @@ import pele.amber.read_amber as ra
 import playground.group_rotation.chirality as chir
 import networkx as nx
 
+
 class RotamerGroupTemplate(ts.IsDescription):
     """
     A compound data type for interoperating with ROTAMER_GROUP_TEMPLATE in GMIN.
@@ -62,7 +63,7 @@ for amino_acid in (amino.amino_acids):
 
     # Get a list of dihedrals we are interested in for this residue.
     dihedrals = sorted([k[1] for k in amino.def_parameters if k[0] == amino_acid
-                                                              and not ('C' in k[1] and 'CA' in k[1])])
+                        and not ('C' in k[1] and 'CA' in k[1])])
 
     # For each pair of atoms in a dihedral, find their highest-ranked neighbours for defining the dihedral angle.
     dihedral_atoms = {}

@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def dihedral_angle(coords, dihedral):
     """
     Measure dihedral angle for this set of atoms.
@@ -9,11 +10,12 @@ def dihedral_angle(coords, dihedral):
     :return angle: Measured dihedral angle
     """
     atom_coords = [coords[x.index] for x in dihedral]
-    b1, b2, b3 = [atom_coords[i+1] - atom_coords[i] for i in range(0, 3)]
+    b1, b2, b3 = [atom_coords[i + 1] - atom_coords[i] for i in range(0, 3)]
     b2_b3 = np.cross(b2, b3)
     b1_b2 = np.cross(b1, b2)
     angle = np.arctan2(np.linalg.norm(b2) * np.dot(b1, b2_b3), np.dot(b1_b2, b2_b3))
     return angle
+
 
 def restrict_angle_value(angle, symmetry_order):
     """ Restricts an angle between -180 and 180 to be the smallest (closest to zero) value which is equivalent by
@@ -29,6 +31,7 @@ def restrict_angle_value(angle, symmetry_order):
     elif angle > max_angle:
         angle -= 2.0 * max_angle
     return angle
+
 
 def dihedrals_with_symmetry(coords, residue, residue_ids, dihedrals):
     """
@@ -46,7 +49,8 @@ def dihedrals_with_symmetry(coords, residue, residue_ids, dihedrals):
     # This compares against the list of residues which have symmetry.
     if residue_ids[residue] in ["ARG", "ASP", "GLU", "LEU", "PHE", "TYR", "VAL"]:
         print "Restricting:", dihedral_values[residue][-1]
-        dihedral_values[residue][-1] = (dihedral_values[residue][-1][0], restrict_angle_value(dihedral_values[residue][-1][1], 2))
+        dihedral_values[residue][-1] = (
+            dihedral_values[residue][-1][0], restrict_angle_value(dihedral_values[residue][-1][1], 2))
     else:
         dihedral_values[residue] = [(dihedral, dihedral_angle(coords, dihedral)) for dihedral in dihedrals]
     return dihedral_values
@@ -59,6 +63,7 @@ symmetric_atoms = {"ASP": ["O0", "O1"],
                    "PHE": ["C3", "C7"],
                    "TYR": ["C3", "C7"],
                    "VAL": ["C2", "C3"]}
+
 
 def dihedral_with_symmetry(coords, dihedral):
     """

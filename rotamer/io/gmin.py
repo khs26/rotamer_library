@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def read_one_structure(lowest_file):
     natoms = int(lowest_file.readline().strip())
     data_line = lowest_file.readline().split()
@@ -10,6 +11,7 @@ def read_one_structure(lowest_file):
     for i in range(0, natoms):
         coords[i] = map(float, lowest_file.readline().split()[1:])
     return index, energy, first_found, coords
+
 
 def read_lowest(lowest_filename):
     structures = []
@@ -22,12 +24,14 @@ def read_lowest(lowest_filename):
                 break
     return structures
 
+
 def write_coords(coords, coords_filename):
     coords = np.reshape(coords, (-1, 3))
     with open(coords_filename, "w") as coords_file:
         coords_file.write("{: >10d}\n".format(coords.shape[0]))
         for coord in coords:
             coords_file.write(("{: >20.10f}" * 3 + "\n").format(*coord))
+
 
 if __name__ == "__main__":
     lowest_structs = read_lowest("/scratch/khs26/ser_lys_fe_bh/ff03_igb2/temp_0.0/rep5/output/lowest")

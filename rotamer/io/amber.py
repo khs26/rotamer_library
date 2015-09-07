@@ -1,6 +1,6 @@
 import numpy as np
 import os.path
-import math
+
 
 def read_amber_restart(filename):
     field_length = 12
@@ -19,6 +19,7 @@ def read_amber_restart(filename):
         raise RuntimeError("Number of coordinates in coords file and number of atoms are inconsistent.")
     return np.array(coords)
 
+
 def write_amber_restart(filename, coords):
     coords = np.reshape(coords, (-1, 3))
     with open(filename, "w") as restart_file:
@@ -34,6 +35,7 @@ def write_amber_restart(filename, coords):
                 buff = []
         if buff:
             restart_file.write(("{: >12.7f}" * 3 + "\n").format(*buff))
+
 
 if __name__ == "__main__":
     write_amber_restart("test.rst", [0, 12, 15, 2, 0.5, 3, 4, 5, 6])
