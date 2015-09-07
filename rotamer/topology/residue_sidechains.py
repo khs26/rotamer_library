@@ -90,6 +90,7 @@ dihedral_chain["PHE"] = ("N-1", "C0", "C1", "C2", "C3")
 
 # G - Glycine
 # Not needed
+glycine = nx.Graph(None)
 dihedral_chain["GLY"] = None
 
 # Hd - Histidine (delta protonated)
@@ -207,7 +208,7 @@ add_hydrogens(asparagine, hydrogen_count)
 dihedral_chain["ASN"] = ("N-1", "C0", "C1", "C2", "O0")
 
 # P - Proline
-# Not needed
+proline = nx.Graph(None)
 
 # Q - Glutamine
 heavy_atoms = [("C0", "C1"),
@@ -320,6 +321,7 @@ amino_acids = {"ALA": alanine,
                "ASP": aspartate,
                "GLU": glutamate,
                "PHE": phenylalanine,
+               "GLY": glycine,
                "HID": histidine_d,
                "HIE": histidine_e,
                "HIP": histidine_p,
@@ -328,6 +330,7 @@ amino_acids = {"ALA": alanine,
                "LEU": leucine,
                "MET": methionine,
                "ASN": asparagine,
+               "PRO": proline,
                "GLN": glutamine,
                "ARG": arginine,
                "SER": serine,
