@@ -79,11 +79,14 @@ def dihedral_with_symmetry(coords, dihedral):
     residue = dihedral.residue
     # This compares against the list of residues which have symmetry.
     if residue.identity in symmetric_atoms:
-        if any([dihedral.atom_map[sym_atom] in dihedral.atoms for sym_atom in symmetric_atoms[residue.identity]]):
-            # print "Restricting:", dihedral.residue, dihedral.atoms
-            angle = restrict_angle_value(dihedral_angle(coords, dihedral.atoms), 2)
-        else:
-            # print "Not restricting:", dihedral.residue, dihedral.atoms
+        try:
+            if any([dihedral.atom_map[sym_atom] in dihedral.atoms for sym_atom in symmetric_atoms[residue.identity]]):
+                # print "Restricting:", dihedral.residue, dihedral.atoms
+                angle = restrict_angle_value(dihedral_angle(coords, dihedral.atoms), 2)
+            else:
+                # print "Not restricting:", dihedral.residue, dihedral.atoms
+                angle = dihedral_angle(coords, dihedral.atoms)
+        except AttributeError:
             angle = dihedral_angle(coords, dihedral.atoms)
     else:
         angle = dihedral_angle(coords, dihedral.atoms)

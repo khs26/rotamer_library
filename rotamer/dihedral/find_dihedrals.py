@@ -1,19 +1,20 @@
 import networkx as nx
-
 import rotamer.topology.read_amber_prmtop as amber
 import rotamer.topology.chirality as chirality
 import transforms
 from measure_dihedral import dihedral_with_symmetry, symmetric_atoms
 from rotamer.io.amber import read_amber_restart
+from rotamer.topology.identify_backbone import find_backbone_carbons
 
 
 class Dihedral(object):
     def __init__(self, dihedral_atoms):
         self.atoms = dihedral_atoms
-        self.residue = dihedral_atoms[0].residue
-        self.atom_graph = dihedral_atoms[0].molecule.atoms
+        # Use atom with index 1, because it should be inside the residue (e.g. phi/psi angles).
+        self.residue = dihedral_atoms[1].residue
+        self.atom_graph = dihedral_atoms[1].molecule.atoms
         # self.atom_map = {v: k for k, v in self.residue.atom_map.items()}
-        self.atom_map = self.residue.atom_map
+        # self.atom_map = self.residue.atom_map
         self.get_moving_atoms()
 
     def measure_dihedral(self, coords):
@@ -81,24 +82,52 @@ def map_dihedrals(residue_identities, residue_atom_map):
         dihedral_dict[residue] = mapped_dihedrals
     return dihedral_dict
 
+def phi_psi_dihedrals(molecule):
+    backbone_dict = find_backbone_carbons(molecule)
+    # Chain should be C'(-1) - N(0) - Ca(0) - C'(0) - N(1)
+    phis, psis = [], []
+    for res in sorted(backbone_dict.keys()):
+        c_alpha = res.backbone_map["CA"]
+        c_prime = res.backbone_map["C'"]
+        nitrogen = res.backbone_map["N"]
+        try:
+            c_minus_1 = [nb for nb in nx.neighbors(molecule.atoms, nitrogen)
+                         if any([nb2.element == 'O' for nb2 in nx.neighbors(molecule.atoms, nb)])][0]
+            phi = Dihedral([c_minus_1, nitrogen, c_alpha, c_prime])
+            res.dihedrals["phi"] = phi
+            phis.append(phi)
+        except IndexError:
+            c_minus_1 = None
+        try:
+            n_plus_1 = [nb for nb in nx.neighbors(molecule.atoms, c_prime) if nb.element == 'N'][0]
+            psi = Dihedral([nitrogen, c_alpha, c_prime, n_plus_1])
+            res.dihedrals["psi"] = psi
+            psis.append(psi)
+        except IndexError:
+            n_plus_1 = None
+    return phis, psis
+
+def sidechain_dihedrals(molecule):
+    ress, maps = molecule.identify_residues()
+    sc_dihedrals = []
+    for k, v in map_dihedrals(ress, maps).items():
+        for idx, dihedral in enumerate(v):
+            k.dihedrals["chi" + str(idx+1)] = Dihedral(dihedral)
+            sc_dihedrals.append(dihedral)
+    return sc_dihedrals
+
 
 if __name__ == "__main__":
     import os.path
     import numpy as np
 
-    # pr = cProfile.Profile()
-    # pr.enable()
-    topology_data = amber.read_topology(os.path.normpath("/home/khs26/flu.prmtop"))
-    coords = np.array(read_amber_restart(os.path.normpath("/home/khs26/flu.inpcrd"))).reshape((-1, 3))
+    topology_data = amber.read_topology(os.path.normpath("/home/khs26/coords.prmtop"))
+    coords = np.array(read_amber_restart(os.path.normpath("/home/khs26/coords.1.inpcrd"))).reshape((-1, 3))
     molecule = amber.create_molecule(topology_data)
-    ress, maps = molecule.identify_residues()
-    dihedrals = []
-    for v in map_dihedrals(ress, maps).values():
-        for dihedral in v:
-            dihedrals.append(Dihedral(dihedral))
-    for dihe in sorted(dihedrals, key=lambda x: x.residue.index):
-        if dihe.residue.identity in symmetric_atoms:
-            print dihe.residue, dihe.atoms, dihe.residue.atoms
-            print "Angle:", dihe.measure_dihedral(coords) * 180.0 / np.pi
-            # pr.disable()
-            # pr.print_stats('cumulative')
+    phi_psi_dihedrals(molecule)
+    sidechain_dihedrals(molecule)
+    for res in sorted(molecule.residues):
+        print "========================"
+        print res
+        for k, v in res.dihedrals.items():
+            print k, v.measure_dihedral(coords) * 180.0 / np.pi

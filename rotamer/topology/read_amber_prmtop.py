@@ -47,6 +47,7 @@ class Residue(object):
         self.name = name.strip()
         self.molecule = molecule
         self.identity = None
+        self.dihedrals = {}
 
     def add_atoms(self, atoms):
         """ 
