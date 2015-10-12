@@ -23,4 +23,5 @@ def find_backbone_carbons(molecule):
         this_res.backbone_map["N"] = list(set(nx.neighbors(atoms, c_alpha)) & set(nitrogens))[0]
     return backbone_atoms
 
-molecule = parse_topology_file("/home/khs26/flu.prmtop")
+if __name__ == "__main__":
+    molecule = parse_topology_file("/home/khs26/flu.prmtop")
