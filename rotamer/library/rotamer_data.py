@@ -2,13 +2,15 @@ from rotamer.topology.residue_sidechains import amino_acids
 import rotamer.dihedral.find_dihedrals as find_dihedrals
 from rotamer.io.gmin import read_lowest
 import rotamer.topology.read_amber_prmtop as ra
-import networkx as nx
+import numpy as np
+
 
 class BaseRotamerState(object):
     """
     Base class for rotamer states for the GMIN rotamer library.
     """
     pass
+
 
 class FullRotamerState(BaseRotamerState):
     """
@@ -25,6 +27,7 @@ class RotamerStateFactory(object):
     """
     Creates new rotamer states, either from raw GMIN data or from a HDF5 database.
     """
+
     def from_lowest(self, prmtop_filename, lowest_filename, state_type):
         """
         Creates a new RotamerState of appropriate type from a GMIN lowest file.
@@ -37,11 +40,34 @@ class RotamerStateFactory(object):
         molecule = ra.parse_topology_file(prmtop_filename)
         # molecule.identify_residues()[1]
         find_dihedrals.map_dihedrals(*(molecule.identify_residues()))
-        configs = read_lowest(lowest_filename)
+        self.configs = read_lowest(lowest_filename)
         find_dihedrals.phi_psi_dihedrals(molecule)
         find_dihedrals.sidechain_dihedrals(molecule)
-        for res in sorted(molecule.residues.nodes()):
-            print res.name, res.dihedrals
+        lowest0 = self.lowest_config_coords(0)
+        lowest25 = self.lowest_config_coords(25)
+        for res in sorted([res for res in molecule.residues.nodes() if res.name != "ACE" and res.name != "NME"],
+                          key=lambda x: x.index):
+            print "---------------"
+            print res.name, res.index
+            print "---------------"
+            print "phi", res.dihedrals["phi"].measure_dihedral(lowest0) * 180.0 / np.pi
+            print "psi", res.dihedrals["psi"].measure_dihedral(lowest0) * 180.0 / np.pi
+            for dihedral, dihe_object in sorted([(k, v) for k, v in res.dihedrals.items() if 'chi' in k]):
+                print dihedral, dihe_object.measure_dihedral(lowest0) * 180.0 / np.pi
+            print ""
+        for res in sorted([res for res in molecule.residues.nodes() if res.name != "ACE" and res.name != "NME"],
+                          key=lambda x: x.index):
+            print "---------------"
+            print res.name, res.index
+            print "---------------"
+            print "phi", res.dihedrals["phi"].measure_dihedral(lowest25) * 180.0 / np.pi
+            print "psi", res.dihedrals["psi"].measure_dihedral(lowest25) * 180.0 / np.pi
+            for dihedral, dihe_object in sorted([(k, v) for k, v in res.dihedrals.items() if 'chi' in k]):
+                print dihedral, dihe_object.measure_dihedral(lowest25) * 180.0 / np.pi
+            print ""
+
+    def lowest_config_coords(self, index):
+        return self.configs[index]['coords']
 
 
 if __name__ == "__main__":
