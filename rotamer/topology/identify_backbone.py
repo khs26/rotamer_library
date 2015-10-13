@@ -6,8 +6,6 @@ def find_backbone_carbons(molecule):
     carbons = [atom for atom in atoms if atom.element == 'C']
     oxygens = [atom for atom in atoms if atom.element == 'O']
     nitrogens = [atom for atom in atoms if atom.element == 'N']
-    for c in carbons:
-        print c, nx.neighbors(atoms, c)
     c_carbonyls = [atom for atom in carbons
                    if atoms.degree(atom) == 3
                    and list(set(nx.neighbors(atoms, atom)) & set(oxygens))]
