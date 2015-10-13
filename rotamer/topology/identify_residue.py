@@ -26,6 +26,8 @@ def find_sidechains(molecule_graph):
     chiral_centres = chir.get_chiral_sets(atoms)
     # Identify sidechains (Ca-Cb-X), apart from proline and glycine.
     sidechains = {}
+    # Detection of sidechains requires the multiple bonds be present in the atom graph.
+    chir.multi_bonds(atoms)
     for k, v in chiral_centres.items():
         carbons = [atom for atom in v if atom.element == 'C']
         amides = [carbon for carbon in carbons
@@ -43,6 +45,7 @@ def find_sidechains(molecule_graph):
             atoms.add_edges_from([amide_bond, n_bond, h_bond])
             if not any([k in cycle for cycle in nx.cycle_basis(atoms.subgraph(sidechain_atoms))]):
                 sidechains[k] = atoms.subgraph(sidechain_atoms)
+    chir.remove_ghost_atoms(atoms)
     return sidechains
 
 
