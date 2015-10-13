@@ -1,5 +1,5 @@
 from rotamer.topology.residue_sidechains import amino_acids
-from rotamer.dihedral.find_dihedrals import Dihedral, map_dihedrals
+import rotamer.dihedral.find_dihedrals as find_dihedrals
 from rotamer.io.gmin import read_lowest
 import rotamer.topology.read_amber_prmtop as ra
 import networkx as nx
@@ -35,11 +35,15 @@ class RotamerStateFactory(object):
         :return:
         """
         molecule = ra.parse_topology_file(prmtop_filename)
-        print molecule.identify_residues()[1]
-        # print map_dihedrals(*(molecule.identify_residues()))
+        # molecule.identify_residues()[1]
+        find_dihedrals.map_dihedrals(*(molecule.identify_residues()))
         configs = read_lowest(lowest_filename)
+        find_dihedrals.phi_psi_dihedrals(molecule)
+        find_dihedrals.sidechain_dihedrals(molecule)
+        for res in sorted(molecule.residues.nodes()):
+            print res.name, res.dihedrals
 
 
 if __name__ == "__main__":
     test = RotamerStateFactory()
-    test.from_lowest("/home/khs26/coords.prmtop", "/home/khs26/lowest", 1)
+    test.from_lowest("./coords.prmtop", "./lowest", 1)
