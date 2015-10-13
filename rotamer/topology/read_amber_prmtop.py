@@ -311,8 +311,6 @@ def default_parameters(topology_filename):
 
 
 if __name__ == "__main__":
-    import chirality
-
     topology_data = read_topology("/home/khs26/flu.prmtop")
     mol = create_molecule(topology_data)
     mol.read_coords("/home/khs26/flu.inpcrd")

@@ -48,6 +48,14 @@ def multi_bonds(atoms):
                 atoms.add_edge(atom, ghost_other)
                 paired = True
 
+def remove_ghost_atoms(atoms):
+    """
+    Removes ghost atoms from the atom graph (not needed after chirality checks).
+
+    :param atoms: Atom graph
+    """
+    ghost_atoms = [atom for atom in atoms.nodes() if isinstance(atom, GhostAtom)]
+    atoms.remove_nodes_from(ghost_atoms)
 
 def rankable_neighbours(chiral_cands):
     """ Checks if the chiral atom candidates have rankable substituents on each site (i.e. discounting those whose
@@ -125,6 +133,7 @@ def get_chiral_sets(atoms):
         ordered = chiral_order(atoms, chiral_atom)
         if len(ordered) == 4:
             chiral_centres[chiral_atom] = ordered
+    remove_ghost_atoms(atoms)
     return chiral_centres
 
 
