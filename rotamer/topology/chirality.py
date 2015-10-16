@@ -2,7 +2,6 @@
 
 import read_amber_prmtop as ra
 import networkx as nx
-import sys
 import itertools
 
 
@@ -153,6 +152,27 @@ def write_chirality_file(input_filename, output_filename):
                                                                              chiral_centres[atom]])
             output_file.write(output_string)
 
+def calculate_chirality(coords, chiral_centres):
+    import numpy as np
+
+    # For centre atom C and atoms ordered I, J, K and L
+    # Calculate dihedral of I-C-L-J
+    for atom_list in chiral_centres:
+        b1 = coords[atom_list[0]] - coords[atom_list[1]]
+        b2 = coords[atom_list[4]] - coords[atom_list[0]]
+        b3 = coords[atom_list[2]] - coords[atom_list[4]]
+        b1xb2 = np.cross(b1, b2)
+        b2xb3 = np.cross(b2, b3)
+        b1xb2_x_b2xb3 = np.cross(b1xb2, b2xb3)
+        b2_norm = b2 / np.linalg.norm(b2)
+        angle = np.arctan2(np.dot(b1xb2_x_b2xb3, b2_norm), np.dot(b1xb2, b2xb3))
+        print angle
 
 if __name__ == "__main__":
-    write_chirality_file(sys.argv[1], ".chirality_list")
+    import rotamer.io.amber
+    molecule = ra.parse_topology_file("../library/coords.prmtop")
+    atoms = molecule.atoms
+    chiral_centres = get_chiral_sets(atoms)
+    chiral_centres_list = [[k.index] + [val.index for val in v] for k, v in chiral_centres.items()]
+    coords = rotamer.io.amber.read_amber_restart("../library/coords.inpcrd")
+    calculate_chirality(coords.reshape((-1, 3)), chiral_centres_list)
