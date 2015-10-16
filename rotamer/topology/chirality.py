@@ -155,6 +155,7 @@ def write_chirality_file(input_filename, output_filename):
 def calculate_chirality(coords, chiral_centres):
     import numpy as np
 
+    angles = []
     # For centre atom C and atoms ordered I, J, K and L
     # Calculate dihedral of I-C-L-J
     for atom_list in chiral_centres:
@@ -165,14 +166,18 @@ def calculate_chirality(coords, chiral_centres):
         b2xb3 = np.cross(b2, b3)
         b1xb2_x_b2xb3 = np.cross(b1xb2, b2xb3)
         b2_norm = b2 / np.linalg.norm(b2)
-        angle = np.arctan2(np.dot(b1xb2_x_b2xb3, b2_norm), np.dot(b1xb2, b2xb3))
-        print angle
+        angles.append(np.arctan2(np.dot(b1xb2_x_b2xb3, b2_norm), np.dot(b1xb2, b2xb3)))
+    return angles
 
 if __name__ == "__main__":
-    import rotamer.io.amber
+    import rotamer.io.gmin
     molecule = ra.parse_topology_file("../library/coords.prmtop")
     atoms = molecule.atoms
     chiral_centres = get_chiral_sets(atoms)
     chiral_centres_list = [[k.index] + [val.index for val in v] for k, v in chiral_centres.items()]
+    # Starting coords
     coords = rotamer.io.amber.read_amber_restart("../library/coords.inpcrd")
-    calculate_chirality(coords.reshape((-1, 3)), chiral_centres_list)
+    print calculate_chirality(coords.reshape((-1, 3)), chiral_centres_list)
+    # Lowest file
+    coords = rotamer.io.gmin.read_lowest("../library/lowest")[0]["coords"]
+    print calculate_chirality(coords.reshape((-1, 3)), chiral_centres_list)
