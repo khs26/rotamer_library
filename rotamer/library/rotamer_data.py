@@ -35,10 +35,8 @@ class RotamerStateFactory(object):
         :param prmtop_filename: File name of the AMBER topology file
         :param lowest_filename: File name of the GMIN lowest file
         :param state_type: Type of rotamer state (i.e. what sort of dependence on neighbours, backbone dihedrals etc.)
-        :return:
         """
         molecule = ra.parse_topology_file(prmtop_filename)
-        # molecule.identify_residues()[1]
         find_dihedrals.map_dihedrals(*(molecule.identify_residues()))
         self.configs = read_lowest(lowest_filename)
         find_dihedrals.phi_psi_dihedrals(molecule)
@@ -69,7 +67,66 @@ class RotamerStateFactory(object):
     def lowest_config_coords(self, index):
         return self.configs[index]['coords']
 
+def norm_lowest_configs(lowest_configs):
+    global_min_energy = min([x["energy"] for x in lowest_configs])
+    for config in lowest_configs:
+        config["energy"] -= global_min_energy
+    return global_min_energy
+
+def lowest_to_dihedral_csv(prmtop_filename, lowest_filename, csv_filename):
+    """
+    Reads a topology and lowest filename and writes dihedral information to a csv file.
+
+    The file has the following structure:
+
+    <res_1>,<res_2>,<res_3>,...,<res_n>
+    global minimum,<energy of global minimum>
+    <res_1>,phi,psi,[chi_1],...,[chi_n]
+    <res_2>,phi,psi,[chi_1],...,[chi_n]
+    .
+    .
+    .
+    <res_n>,phi,psi,[chi_1],...,[chi_n]
+    <norm_energy_0>,<res_1_phi>,<res_1_psi>,[<res_1_chi_1>],...,<res_2_phi>,...,<res_n_phi>,...,[<res_n_chi_n>]
+    <norm_energy_1>,<res_1_phi>,<res_1_psi>,[<res_1_chi_1>],...,<res_2_phi>,...,<res_n_phi>,...,[<res_n_chi_n>]
+    .
+    .
+    .
+    <norm_energy_N>,<res_1_phi>,<res_1_psi>,[<res_1_chi_1>],...,<res_2_phi>,...,<res_n_phi>,...,[<res_n_chi_n>]
+
+    N.B. energies are given relative to the global minimum and angles are given in degrees in the order specified at the
+    top of the file
+
+    :param prmtop_filename: Amber topology filename
+    :param lowest_filename: GMIN lowest filename
+    :return:
+    """
+    import csv
+
+    molecule = ra.parse_topology_file(prmtop_filename)
+    find_dihedrals.map_dihedrals(*(molecule.identify_residues()))
+    find_dihedrals.phi_psi_dihedrals(molecule)
+    find_dihedrals.sidechain_dihedrals(molecule)
+    lowest_configs = read_lowest(lowest_filename)
+    res_no_termini = [res for res in sorted(molecule.residues.nodes(), key=lambda x: x.index)
+                      if res.name != "ACE" and res.name != "NME"]
+    with open(csv_filename, "w") as csv_file:
+        dihe_writer = csv.writer(csv_file)
+        dihe_writer.writerow(res_no_termini)
+        global_min_energy = norm_lowest_configs(lowest_configs)
+        dihe_writer.writerow(["global minimum", global_min_energy])
+        ordered_dihe = []
+        for res in res_no_termini:
+            backbone = sorted([dihe for dihe in res.dihedrals if 'p' in dihe])
+            sidechain = sorted([dihe for dihe in res.dihedrals if 'p' not in dihe])
+            dihe_writer.writerow([res.name] + backbone + sidechain)
+            ordered_dihe += [res.dihedrals[x] for x in backbone]
+            ordered_dihe += [res.dihedrals[x] for x in sidechain]
+        for config in lowest_configs:
+            energy = config["energy"]
+            angles = [x.measure_dihedral(config["coords"]) * 180.0 / np.pi for x in ordered_dihe]
+            dihe_writer.writerow(["{:.8f}".format(energy)] + ["{: 9.4f}".format(angle) for angle in angles])
+
 
 if __name__ == "__main__":
-    test = RotamerStateFactory()
-    test.from_lowest("./coords.prmtop", "./lowest", 1)
+    lowest_to_dihedral_csv("./coords.prmtop", "./lowest", "./dihedrals.csv")
