@@ -26,11 +26,12 @@ def find_backbone_carbons(molecule):
         this_res.backbone_map["C'"] = list(set(nx.neighbors(atoms, c_alpha)) & set(c_carbonyls))[0]
         # Nitrogen neighbouring C-alpha
         this_res.backbone_map["N"] = list(set(nx.neighbors(atoms, c_alpha)) & set(nitrogens))[0]
+        backbone_atoms[this_res] = this_res.backbone_map.values()
     return backbone_atoms
 
 
 if __name__ == "__main__":
-    molecule = parse_topology_file("/home/khs26/flu.prmtop")
+    molecule = parse_topology_file("../library/coords.prmtop")
     find_backbone_carbons(molecule)
     for res in sorted(molecule.residues.nodes(), key=lambda x: x.index):
         print res, res.backbone_map.items()
