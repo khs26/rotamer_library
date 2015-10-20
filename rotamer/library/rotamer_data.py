@@ -129,4 +129,15 @@ def lowest_to_dihedral_csv(prmtop_filename, lowest_filename, csv_filename):
 
 
 if __name__ == "__main__":
-    lowest_to_dihedral_csv("./coords.prmtop", "./lowest", "./dihedrals.csv")
+    from rotamer.topology.residue_sidechains import amino_acids
+    import itertools
+    import os.path
+    import time
+    now = time.time()
+    for comb in itertools.product(amino_acids, repeat=3):
+        print comb, "{:.1f}s".format(time.time() - now)
+        directory = os.path.join(os.path.curdir, *comb)
+        prmtop = os.path.join(directory, "coords.prmtop")
+        lowest = os.path.join(directory, "lowest")
+        dihedral_csv = os.path.join(os.path.curdir, "dihedrals", "".join(("_".join(comb), ".csv")))
+        lowest_to_dihedral_csv(prmtop, lowest, dihedral_csv)
