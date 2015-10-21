@@ -122,10 +122,14 @@ def lowest_to_dihedral_csv(prmtop_filename, lowest_filename, csv_filename):
             dihe_writer.writerow([res.name] + backbone + sidechain)
             ordered_dihe += [res.dihedrals[x] for x in backbone]
             ordered_dihe += [res.dihedrals[x] for x in sidechain]
+        last_energy = 0.0
         for config in lowest_configs:
             energy = config["energy"]
+            if (energy - last_energy) > 10.0:
+                break
             angles = [x.measure_dihedral(config["coords"]) * 180.0 / np.pi for x in ordered_dihe]
             dihe_writer.writerow(["{:.8f}".format(energy)] + ["{: 9.4f}".format(angle) for angle in angles])
+            last_energy = energy
 
 
 if __name__ == "__main__":
@@ -133,9 +137,16 @@ if __name__ == "__main__":
     import itertools
     import os.path
     import time
+    import sys
     now = time.time()
     for comb in itertools.product(amino_acids, repeat=3):
         print comb, "{:.1f}s".format(time.time() - now)
+        # lowest = os.path.join(directory, "lowest")
+        # lowest_configs = read_lowest(lowest_filename)
+        # global_min_energy = norm_lowest_configs(lowest_configs)
+        # print "Number accessible:", len([1 for l in lowest_configs if l["energy"] < 5.0])
+        if not sys.argv[1] in comb[0]:
+            continue
         directory = os.path.join(os.path.curdir, *comb)
         prmtop = os.path.join(directory, "coords.prmtop")
         lowest = os.path.join(directory, "lowest")
