@@ -6,7 +6,7 @@ def read_one_structure(lowest_file):
     data_line = lowest_file.readline().split()
     index = int(data_line[3][:-1])
     energy = float(data_line[4])
-    first_found = int(data_line[-1])
+    first_found = int(data_line[9])
     coords = np.zeros([natoms, 3])
     for i in range(0, natoms):
         coords[i] = map(float, lowest_file.readline().split()[1:])
