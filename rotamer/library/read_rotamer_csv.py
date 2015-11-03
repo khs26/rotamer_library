@@ -3,7 +3,7 @@ import os.path
 import glob
 import pandas as pd
 import matplotlib.pyplot as plt
-import sklearn
+import sklearn.cluster
 import numpy as np
 from rotamer.topology.residue_sidechains import amino_acids
 
@@ -53,28 +53,36 @@ def get_columns_matching(dataframe, pattern, regex=False):
         matching = [col for col in dataframe.columns.values.tolist() if re.match(pattern, col)]
     return dataframe.loc[:, matching]
 
-def angle_distance(angle1, angle2):
+def angle_distance2(angle1, angle2):
     """
-    Returns the Euclidean distance between two pairs of rotamer states, accounting for the wrap around of angle
-    values.
+    Returns the square of the Euclidean distance between two pairs of rotamer states, accounting for the wrap around of
+    angle values.
 
     :param angle1, angle2: numpy arrays containing the angles (in degrees)
-    :return: Euclidean distance, accounting for wrap
+    :return: Euclidean distance squared, accounting for wrap
     """
     raw_deltas = np.absolute(angle1 - angle2)
     wrapped_deltas = np.fmin(raw_deltas, (360.0 - raw_deltas))
-    return np.sqrt(np.sum(np.square(wrapped_deltas)))
+    return np.sum(np.square(wrapped_deltas))
 
 if __name__ == "__main__":
-    amino_acid = "TYR"
+    import time
+    amino_acid = "ARG"
     arg_csvs = find_csvs(amino_acid)
     all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
     only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
     joined = pd.concat(only_centre)
     # NDArray of rotamer angles
     as_ndarray = joined.iloc[:, 1:].values
-
-
+    # Create and use a DBScan instance
+    print "Started clustering:"
+    now = time.time()
+    dbscan = sklearn.cluster.DBSCAN(eps=200, metric=angle_distance2).fit_predict(as_ndarray)
+    end = time.time()
+    print end - now
+    print dbscan
+    n_clusters = len(set(dbscan)) - (1 if -1 in dbscan else 0)
+    print n_clusters
 
 
 # # print rotamer_data.head()
