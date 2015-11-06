@@ -102,10 +102,25 @@ def cluster_angles(dataframe, eps, metric=angle_distance2, max_unclustered=0.00)
             unclustered = np.sum(labels == -1)
             this_eps = 1.1 * this_eps
             clustered = pd.DataFrame()
-            for j in range(-1, n_clusters):
-                clustered = pd.concat([clustered, pd.DataFrame([col[l] for l, k in enumerate(labels) if k == j])], axis=1)
-                clustered.columns[j] == str(j)
-            print clustered.head(5)
+            with open('clusters', "w") as clusters:
+                for j in range(-1, n_clusters):
+                    clustered = pd.concat([clustered, pd.DataFrame([col[l] for l, k in enumerate(labels) if k == j])], axis=1)
+                    clusters.write("Cluster {: d}\n".format(j))
+                    clusters.write("-----------------\n")
+                    for element in clustered.iloc[:, j][clustered.iloc[:, j].notnull()].tolist():
+                        clusters.write("{: 8.3f}\n".format(element))
+                    clusters.write("-----------------\n")
+                    # mean = np.sum(clustered.iloc[:, j]) / clustered.iloc[:, j].size
+                    # stdev = np.sqrt(np.sum(np.square(clustered.iloc[:, j] - mean)) / clustered.iloc[:, j].size)
+                    # print "{: d} mean: {: 8.3f} stdev: {: 8.3f}".format(j, mean, stdev)
+                    # outliers = (clustered.iloc[:, j] - mean) > (3 * stdev)
+                    # print "-----------"
+                    # print "Outliers:", clustered.iloc[:, j][outliers]
+                    # print "-----------"
+                    clustered.columns[j] == str(j)
+                clusters.write("------------------------------------------------\n")
+                exit()
+            # print "".join(["{: 7.2f}{: 7.2f}\n".format(mu, sigma) for (mu, sigma) in sorted(zip(clustered.mean(0), clustered.std(0)))])
             # clustered.hist(bins=36)
             # plt.show()
         # Add this column to the label dataframe
