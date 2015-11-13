@@ -75,6 +75,26 @@ def sum_delta_function(array1, array2):
     """
     return np.sum(array1 != array2)
 
+def cluster_wrapper(data, algorithm=None, **kwargs):
+    """
+    Wrapper for the clustering algorithms available in scikit-learn.
+
+    :param data: Data to be clustered (in a format suitable to pass straight to the clustering algorithms).
+    :param algorithm: Callable algorithm to use.
+    :param kwargs: Keywords for the algorithm used.
+    :return: Dataframe with data in columns corresponding to clusters.
+    """
+    # Predict clusters
+    algo_object = algorithm(**kwargs)
+    labels = algo_object.fit_predict(data)
+    # Convert labels to a dataframe
+    data_1d = data.transpose()[0]
+    label_series = {}
+    for label in labels:
+        label_series[label] = pd.Series(data_1d[labels == label])
+    return pd.DataFrame(label_series)
+
+
 def cluster_angles(dataframe, eps, metric=angle_distance2, max_unclustered=0.00):
     """
     Assigns each dihedral angle to a cluster using the DBScan algorithm. If the clustering algorithm returns a higher
@@ -93,9 +113,17 @@ def cluster_angles(dataframe, eps, metric=angle_distance2, max_unclustered=0.00)
     # Run the clustering until we satisfy the max_unclustered condition.
     pd.set_option('display.width', 1000)
     for i, col in enumerate(as_ndarray.transpose()[:]):
-        unclustered = col.shape[0]
+        n_unclustered = col.shape[0]
         this_eps = eps
-        while unclustered/float(col.shape[0]) > max_unclustered:
+        while n_unclustered/float(col.shape[0]) > max_unclustered:
+            clustered = cluster_wrapper(data=col[np.newaxis, :].transpose(),
+                                        algorithm=sklearn.cluster.DBSCAN,
+                                        eps=this_eps,
+                                        metric=metric)
+            n_clusters = clustered.shape[1]
+            n_unclustered = clustered[-1].dropna().size
+            print n_clusters, n_unclustered
+            exit()
             dbscan = sklearn.cluster.DBSCAN(eps=this_eps, metric=metric).fit(col[np.newaxis, :].transpose())
             labels = dbscan.labels_
             n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
@@ -142,7 +170,7 @@ if __name__ == "__main__":
     all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
     only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
     joined = pd.concat(only_centre)
-    labelled = cluster_angles(joined.iloc[:10000, 3:], 1.0)
+    labelled = cluster_angles(joined.iloc[:10000, 3:], 10.0)
     print labelled
     # NDArray of rotamer angles
     as_ndarray = labelled.values.tolist()
