@@ -1,7 +1,23 @@
 import numpy as np
 
+def read_xyz(xyz_filename, natoms):
+    """
+    Read coordinates in from a xyz file (possibly containing multiple structures).
+
+    :param xyz_filename: filename to be read from
+    :param natoms: number of atoms in the structure
+    :return: 3d array of coordinates with shape (n_structures, n_atoms, 3)
+    """
+    all_coords = np.fromfile(xyz_filename, sep=" ")
+    return np.reshape(all_coords, (-1, natoms, 3))
 
 def read_one_structure(lowest_file):
+    """
+    Read a single structure from a lowest file.
+
+    :param lowest_file: File object for the lowest file.
+    :return: Dictionary containing the structure's attributes (e.g. coords and energy).
+    """
     natoms = int(lowest_file.readline().strip())
     data_line = lowest_file.readline().split()
     index = int(data_line[3][:-1])
@@ -14,6 +30,13 @@ def read_one_structure(lowest_file):
 
 
 def read_lowest(lowest_filename):
+    """
+    Read all the structures from a lowest file.
+
+    :param lowest_filename: File name of the lowest file to read.
+    :return: List of dictionaries, each dictionary corresponding to a single structure from the lowest
+             file.
+    """
     structures = []
     with open(lowest_filename, "r") as lowest_file:
         while True:
@@ -26,6 +49,12 @@ def read_lowest(lowest_filename):
 
 
 def write_coords(coords, coords_filename):
+    """
+    Writes coordinates to xyz format.
+
+    :param coords: Numpy array-like (ndarray or list) of coordinates to be printed.
+    :param coords_filename: File name to be written to.
+    """
     coords = np.reshape(coords, (-1, 3))
     with open(coords_filename, "w") as coords_file:
         coords_file.write("{: >10d}\n".format(coords.shape[0]))
