@@ -3,6 +3,12 @@ import os.path
 
 
 def read_amber_restart(filename):
+    """
+    Reads coordinates from an AMBER restart file.
+
+    :param filename: File name to be read from.
+    :return: Numpy array of coordinates with shape (natoms, 3).
+    """
     field_length = 12
     coords = []
     with open(filename, "r") as coords_file:
@@ -17,10 +23,16 @@ def read_amber_restart(filename):
     # If the number of coordinates is not equal to 3 * number of atoms, raise a RuntimeError.
     if len(coords) != number_of_atoms * 3:
         raise RuntimeError("Number of coordinates in coords file and number of atoms are inconsistent.")
-    return np.array(coords)
+    return np.reshape(coords, (-1, 3))
 
 
 def write_amber_restart(filename, coords):
+    """
+    Writes coordinates to a file in AMBER restart format.
+
+    :param filename: File name to write to.
+    :param coords: Numpy array-like (list or ndarray) of coordinates.
+    """
     coords = np.reshape(coords, (-1, 3))
     with open(filename, "w") as restart_file:
         restart_file.write("{0}\n".format(os.path.basename(filename)))
