@@ -93,9 +93,38 @@ class RotamerMove():
         """
         Performs the rotamer move on a given set of coordinates.
 
+        There are a few possible dependency levels:
+
+        1) Identity of the amino acid being moved.
+
+           In this case, we build a partition function by averaging over all of the neighbours and all neighbouring
+           configurations.
+
+        2) Identity of the amino acid and configuration of its backbone (phi/psi angles).
+
+           In this case, we use variable kernel density estimates to construct conditional distributions of phi/psi
+           angles as a function of rotamer states, and invert these using Bayes' rule to obtain P(r|phi, psi) (from
+           Shapovalov MV and Dunbrack RL, Structure, 19, pp844-858, 2011)
+
+        3) Identity of the amino acid and identity of the neighbouring amino acids.
+
+           This is the same as case 1, but constructing separate partition functions for each pair of amino acid
+           neighbours (i.e. 22 * 22 = 484 in total).
+
+        4) Identity of the amino acid, its neighbours and rotameric states of the neighbours.
+
+           This is the same as case 3, but constructing a conditional probability for the central rotamers in terms of
+           the neighbouring rotameric states. *** TODO: Should this be an inversion of P(r_i-1, r_i+1 | r_i)? ***
+
+        5) Combinations of 3 and 4 with backbone configurations.
+
+        Each of these requires a slightly different method for calculating the probability distributions and different
+        amounts of structural information prior to making a move.
+
         :param coords: Initial coordinates
         :return: New coordinates (after the move)
         """
+
 
 
 if __name__ == "__main__":
