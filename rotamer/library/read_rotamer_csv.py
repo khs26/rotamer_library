@@ -144,21 +144,46 @@ def cluster_angles_kmeans(dataframe, n_clusters):
     """
     as_ndarray = dataframe.values
     labelled_states = {}
+    clusterers = {}
     for i, col in enumerate(as_ndarray.transpose()[:]):
         clustered, labels, cluster_object = cluster_wrapper(data=col[np.newaxis, :].transpose(),
                                                             algorithm=sklearn.cluster.MiniBatchKMeans,
                                                             n_clusters=n_clusters[i])
         labelled_states[dataframe.columns[i]] = labels
+        clusterers[dataframe.columns[i]] = cluster_object
+        # clustered.plot(kind='hist', bins=360, edgecolor='none')
+    # plt.show()
     labelled = pd.DataFrame(labelled_states)
-    return labelled
+    return labelled, clusterers
 
 if __name__ == "__main__":
-    amino_acid = "HIP"
-    arg_csvs = find_csvs(amino_acid)
-    all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
-    only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
-    joined = pd.concat(only_centre)
-    labelled = cluster_angles_kmeans(joined.iloc[:, 3:], [3, 5, 2])
+    import cPickle
+    for amino_acid in amino_acids:
+        ok = False
+        while not ok:
+            arg_csvs = find_csvs(amino_acid)
+            all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
+            only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
+            joined = pd.concat(only_centre)
+            # joined.iloc[:, 3:].hist(bins=360)
+            # plt.show()
+            clusters = map(int, raw_input("Cluster proposals: ").split())
+            labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
+            ok = "y" in raw_input("OK? ")
+            if ok:
+                output = open(''.join([amino_acid, '.pkl']), 'wb')
+                cPickle.dump(clusterers, output, -1)
+                output.close()
+                input = open(''.join([amino_acid, '.pkl']), 'rb')
+                unpickled = cPickle.load(input)
+                print type(unpickled)
+                if clusterers == unpickled:
+                    print "Pickled successfully."
+                    print clusterers
+                else:
+                    print "Didn't pickle."
+                    print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
+                input.close()
     # NDArray of rotamer angles
     as_ndarray = labelled.values
     labels = labelled.drop_duplicates().values
