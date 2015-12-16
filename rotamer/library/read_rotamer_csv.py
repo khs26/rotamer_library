@@ -5,9 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import sklearn.cluster
 import numpy as np
-from pandas.tools.plotting import scatter_matrix, andrews_curves
 from rotamer.topology.residue_sidechains import amino_acids
-
 
 def find_csvs(residue_string):
     """
@@ -20,7 +18,6 @@ def find_csvs(residue_string):
     csv_directory = os.path.join(root, "home", "khs26", "rotamer_library", "dihedrals")
     csv_list = glob.glob(os.path.join(csv_directory, "*_" + residue_string + "_*.csv"))
     return csv_list
-
 
 def csv_to_dataframe(csv_filename):
     """
@@ -40,7 +37,6 @@ def csv_to_dataframe(csv_filename):
         rotamer_data.columns = column_names
     return rotamer_data
 
-
 def get_columns_matching(dataframe, pattern, regex=False):
     """
     Returns the columns containing pattern (or satisfying the regex pattern, if regex=True).
@@ -57,7 +53,6 @@ def get_columns_matching(dataframe, pattern, regex=False):
         matching = [col for col in dataframe.columns.values.tolist() if re.match(pattern, col)]
     return dataframe.loc[:, matching]
 
-
 def wrapped_distance(point1, point2, wrap=360.0):
     """
     Returns the distance between two points on a circular surface, which wraps at `wrap`.
@@ -68,7 +63,6 @@ def wrapped_distance(point1, point2, wrap=360.0):
     """
     delta = abs(point1 - point2)
     return np.sum(np.fmin(delta, wrap - delta))
-
 
 def angle_distance2(angles1, angles2):
     """
@@ -82,7 +76,6 @@ def angle_distance2(angles1, angles2):
     wrapped_deltas = np.fmin(raw_deltas, (360.0 - raw_deltas))
     return np.sum(np.square(wrapped_deltas))
 
-
 def sum_delta_function(array1, array2):
     """
     Returns the number of identical array elements
@@ -92,6 +85,26 @@ def sum_delta_function(array1, array2):
     """
     return np.sum(array1 != array2)
 
+def find_gap_in_data(data, width, min, max):
+    """
+    Finds gaps in data (where there are no values) of specified width, between min and max.
+
+    :param data: array-like containing data
+    :param width: width of empty window (and step size)
+    :param min: bottom of search space
+    :param max: top of search space
+    :return: tuple containing lowest value (or None if none found)
+    """
+    ret_tuple = None
+    nsteps = (max - min) / float(width)
+    for bottom in np.linspace(min, max-width, num=nsteps):
+        top = bottom + width
+        # If our data is all either lower than bottom or greater than top, return (bottom, top)
+        if np.all(np.logical_or(data < bottom, data > top)):
+            ret_tuple = (bottom, top)
+            break
+    return ret_tuple
+
 
 def cluster_wrapper(data, algorithm=None, **kwargs):
     """
@@ -100,193 +113,83 @@ def cluster_wrapper(data, algorithm=None, **kwargs):
     :param data: Data to be clustered (in a format suitable to pass straight to the clustering algorithms).
     :param algorithm: Callable algorithm to use.
     :param kwargs: Keywords for the algorithm used.
-    :return: Dataframe with data in columns corresponding to clusters.
+    :return: - pandas DataFrame with data in columns corresponding to clusters.
+             - pandas Series with labels in the place of angles.
+             - sklearn.cluster object, which can be used to predict cluster identities of individual angles.
     """
-    # Shift values so that we can use Euclidean distance
-    empty_range = find_empty_range(data, width=10, min=-180, max=180)
-    data[data < empty_range[0]] += 360.0
+    # Shift data so that there isn't a break in clusters around -180 and 180
+    gap = find_gap_in_data(data, width=0.5, min=-180, max=180)
+    data[data < gap[0]] += 360.0
     # Predict clusters
     algo_object = algorithm(**kwargs)
     labels = algo_object.fit_predict(data)
-    # Shift values back to the range (-180, 180)
+    # Shift data back to (-180, 180)
     data[data > 180.0] -= 360.0
-    # Convert labels to a dataframe
+    # Convert labels to a DataFrame
     data_1d = data.transpose()[0]
     label_series = {}
-    for label in labels:
+    for label in set(labels):
         label_series[label] = pd.Series(data_1d[labels == label])
-    return pd.DataFrame(label_series)
+    return pd.DataFrame(label_series), pd.Series(labels), algo_object
 
 
-def find_empty_range(array, width, min, max):
+def cluster_angles_kmeans(dataframe, n_clusters):
     """
-    Returns the lowest range of chosen width in which there are no values in array, between min and max.
-
-    :param array: 1d array-like containing data
-    :param width: width of window to look at
-    :param min: minimum value
-    :param max: maximum value
-    :return: (bottom, top) or None, if no width found
-    """
-    empty_range = None
-    for bottom in np.arange(min, max, step=width):
-        top = bottom + width
-        if not np.sum(np.logical_and(array > bottom, array < top)):
-            empty_range = bottom, top
-            break
-    return empty_range
-
-
-def cluster_angles(dataframe, eps, metric=angle_distance2, max_unclustered=0.00):
-    """
-    Assigns each dihedral angle to a cluster using the DBScan algorithm. If the clustering algorithm returns a higher
-    proportion of unclustered points than max_unclustered, repeat the clustering with a doubled eps until a suitable
-    number have been clustered.
+    Assigns each dihedral angle to a cluster using the mini-batch K-means algorithm. The number of clusters for each
+    angle must be determined beforehand (e.g. from inspection).
 
     :param dataframe: dataframe to cluster (this can also be a slice of a larger dataframe)
-    :param eps: epsilon value to cutoff nearest neighbour analysis
-    :param metric: callable, which return a distance between two angles
-    :param max_unclustered: proportion of the data which can be unclustered
+    :param n_clusters: number of clusters to generate
     :return: dataframe in which angles have been replaced by cluster ids
     """
     as_ndarray = dataframe.values
-    # Create a dataframe containing cluster labels, instead of angles
-    label_df = pd.DataFrame()
-    # Run the clustering until we satisfy the max_unclustered condition.
-    pd.set_option('display.width', 1000)
+    labelled_states = {}
+    clusterers = {}
     for i, col in enumerate(as_ndarray.transpose()[:]):
-        n_unclustered = col.shape[0]
-        n_clusters = 1
-        while n_unclustered / float(col.shape[0]) > max_unclustered:
-            clustered = cluster_wrapper(data=col[np.newaxis, :].transpose(),
-                                        algorithm=sklearn.cluster.MiniBatchKMeans,
-                                        n_clusters=n_clusters)
-            # print clustered
-            n_clusters += 1
-            cluster_sizes = pd.Series({v: clustered[v].notnull().sum() for v in clustered.columns.values})
-            cluster_means = clustered.mean(0)
-            cluster_stdevs = clustered.std(0)
-            cluster_info = pd.concat([cluster_sizes, cluster_means, cluster_stdevs], axis=1)
-            cluster_info.columns = ["N", "mean", "stdev"]
-            print cluster_info
-            print ""
-            clustered.plot(kind="hist", bins=360, edgecolor="none")
-            plt.show()
-        print "Final clustering:", clustered
-        #         # print n_clusters, n_unclustered
-        #         exit()
-        #         dbscan = sklearn.cluster.DBSCAN(eps=this_eps, metric=metric).fit(col[np.newaxis, :].transpose())
-        #         labels = dbscan.labels_
-        #         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        #         unclustered = np.sum(labels == -1)
-        #         this_eps = 1.1 * this_eps
-        #         clustered = pd.DataFrame()
-        #         with open('clusters', "w") as clusters:
-        #             for j in range(-1, n_clusters):
-        #                 clustered = pd.concat([clustered, pd.DataFrame([col[l] for l, k in enumerate(labels) if k == j])], axis=1)
-        #                 clusters.write("Cluster {: d}\n".format(j))
-        #                 clusters.write("-----------------\n")
-        #                 for element in clustered.iloc[:, j][clustered.iloc[:, j].notnull()].tolist():
-        #                     clusters.write("{: 8.3f}\n".format(element))
-        #                 clusters.write("-----------------\n")
-        #                 # mean = np.sum(clustered.iloc[:, j]) / clustered.iloc[:, j].size
-        #                 # stdev = np.sqrt(np.sum(np.square(clustered.iloc[:, j] - mean)) / clustered.iloc[:, j].size)
-        #                 # print "{: d} mean: {: 8.3f} stdev: {: 8.3f}".format(j, mean, stdev)
-        #                 # outliers = (clustered.iloc[:, j] - mean) > (3 * stdev)
-        #                 # print "-----------"
-        #                 # print "Outliers:", clustered.iloc[:, j][outliers]
-        #                 # print "-----------"
-        #                 clustered.columns[j] == str(j)
-        #             clusters.write("------------------------------------------------\n")
-        #             exit()
-        #         # print "".join(["{: 7.2f}{: 7.2f}\n".format(mu, sigma) for (mu, sigma) in sorted(zip(clustered.mean(0), clustered.std(0)))])
-        #         # clustered.hist(bins=36)
-        #         # plt.show()
-        #     # Add this column to the label dataframe
-        #     label_df = pd.concat([label_df, pd.DataFrame(labels)], axis=1)
-        #     print "==================="
-        #     print dataframe.columns[i]
-        #     print "n_clusters:", n_clusters, "unclustered:", unclustered
-        #     print "final eps:", this_eps / 1.1
-        #     for j in range(0, n_clusters):
-        #         print j, ":", np.sum(labels == j)
-        # # Copy the column names over
-        # label_df.columns = dataframe.columns
-        # return label_df
-
+        clustered, labels, cluster_object = cluster_wrapper(data=col[np.newaxis, :].transpose(),
+                                                            algorithm=sklearn.cluster.MiniBatchKMeans,
+                                                            n_clusters=n_clusters[i])
+        labelled_states[dataframe.columns[i]] = labels
+        clusterers[dataframe.columns[i]] = cluster_object
+        # clustered.plot(kind='hist', bins=360, edgecolor='none')
+    # plt.show()
+    labelled = pd.DataFrame(labelled_states)
+    return labelled, clusterers
 
 if __name__ == "__main__":
-    from scipy import stats
-
-    amino_acid = "TRP"
-    arg_csvs = find_csvs(amino_acid)
-    all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
-    only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
-    joined = pd.concat(only_centre)
-    labelled = cluster_angles(joined.iloc[:10000, 3:], 0.1, metric=wrapped_distance)
-    print labelled
+    import cPickle
+    for amino_acid in amino_acids:
+        ok = False
+        while not ok:
+            arg_csvs = find_csvs(amino_acid)
+            all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
+            only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
+            joined = pd.concat(only_centre)
+            # joined.iloc[:, 3:].hist(bins=360)
+            # plt.show()
+            clusters = map(int, raw_input("Cluster proposals: ").split())
+            labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
+            ok = "y" in raw_input("OK? ")
+            if ok:
+                output = open(''.join([amino_acid, '.pkl']), 'wb')
+                cPickle.dump(clusterers, output, -1)
+                output.close()
+                input = open(''.join([amino_acid, '.pkl']), 'rb')
+                unpickled = cPickle.load(input)
+                print type(unpickled)
+                if clusterers == unpickled:
+                    print "Pickled successfully."
+                    print clusterers
+                else:
+                    print "Didn't pickle."
+                    print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
+                input.close()
     # NDArray of rotamer angles
-    as_ndarray = labelled.values.tolist()
-    as_ndarray = [tuple(ls) for ls in as_ndarray]
-    print len(set(as_ndarray))
-    joined.hist(bins=36)
-    plt.show()
-    # print sorted(as_ndarray)
-    # print "Started clustering:"
-    # dbscan = sklearn.cluster.DBSCAN(eps=1, metric=sum_delta_function).fit(as_ndarray)
-    # print dbscan.labels_
-    # # scatter_matrix(joined.iloc[:1000, 3:], diagonal='kde')
-    # # plt.show()
-    # # for i in np.linspace(1, 200, 10):
-    # #     cluster(i)
-    # print "Epsilon:", 200
-    # now = time.time()
-    # # dbscan = sklearn.cluster.DBSCAN(eps=200, metric=angle_distance2).fit_predict(as_ndarray)
-    # labels = dbscan.labels_
-    # end = time.time()
-    # print end - now, "s"
-    # # print dbscan
-    # n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    # print "Clusters:", n_clusters, "Unclustered:", np.sum(labels == -1)
-    # # print "====================="
-    # core_samples_mask = np.zeros_like(dbscan.labels_, dtype=bool)
-    # core_samples_mask[dbscan.core_sample_indices_] = True
-    # unique_labels = set(labels)
-    # np.set_printoptions(precision=2, suppress=True)
-    # cluster_reps = []
-    # for i in unique_labels:
-    #     class_member_mask = (labels == i)
-    #     for j, val in enumerate(class_member_mask):
-    #         if val:
-    #             print i, as_ndarray[j]
-    #             cluster_reps.append(as_ndarray[j])
-    #             break
-    # for j, i in enumerate(sorted(cluster_reps, key=lambda x: (x[0], x[1], x[2], x[3], x[4]))):
-    #     print j, i
-    # colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
-    # for k, col in zip(unique_labels, colors):
-    #     # if not (k == 3 or k == 15 or k == 32 or k == 54):
-    #     #     continue
-    #     if k == -1:
-    #         # Black used for noise.
-    #         col = 'k'
-    #     class_member_mask = (labels == k)
-    #
-    #     xy = as_ndarray[class_member_mask & core_samples_mask]
-    #     plt.plot(xy[:, 0], xy[:, 2], 'o', markerfacecolor=col, markeredgecolor='k', markersize=14)
-    #
-    #     xy = as_ndarray[class_member_mask & ~core_samples_mask]
-    #     plt.plot(xy[:, 0], xy[:, 2], 'o', markerfacecolor=col, markeredgecolor='k', markersize=6)
-    # plt.xlim([-180, 180])
-    # plt.ylim([-180, 180])
-    # plt.title('Estimated number of clusters: %d' % n_clusters)
-    # plt.show()
-    # # Create and use a DBScan instance
-    # # print "Started clustering:"
-    # # now = time.time()
-    # # dbscan = sklearn.cluster.DBSCAN(eps=300, metric=angle_distance2).fit_predict(as_ndarray)
-    # # end = time.time()
-    # # print end - now, "s"
-    # # print dbscan
-    # # n_clusters = len(set(dbscan)) - (1 if -1 in dbscan else 0)
-    # # print n_clusters
+    as_ndarray = labelled.values
+    labels = labelled.drop_duplicates().values
+    # Join it up with the phi/psi angles and the energies
+    all_with_labels = pd.concat([pd.DataFrame(joined.iloc[:, :3].values), labelled], axis=1)
+    all_with_labels.columns.values[:3] = joined.columns.values[:3]
+    print all_with_labels[np.logical_and((all_with_labels["2 HIP_chi1"] == 0), (all_with_labels["2 HIP_chi2"] == 0))]
+    for label in labels:
+        print "state:", label, "count:", np.sum(np.all(label == as_ndarray, axis=1))
