@@ -139,16 +139,18 @@ if __name__ == "__main__":
     import time
     import sys
     now = time.time()
-    for comb in itertools.product(amino_acids, repeat=3):
+    # for comb in itertools.product(amino_acids, repeat=3):
+    for comb in [('MET', 'CYS', 'HID')]:
         print comb, "{:.1f}s".format(time.time() - now)
         # lowest = os.path.join(directory, "lowest")
         # lowest_configs = read_lowest(lowest_filename)
         # global_min_energy = norm_lowest_configs(lowest_configs)
         # print "Number accessible:", len([1 for l in lowest_configs if l["energy"] < 5.0])
-        if not sys.argv[1] in comb[0]:
-            continue
-        directory = os.path.join(os.path.curdir, *comb)
+        # if not sys.argv[1] in comb[0]:
+        #     continue
+        # directory = os.path.join(os.path.curdir, *comb)
+        directory = os.path.join("/scratch/khs26/rotamer_lib_igb2", *comb)
         prmtop = os.path.join(directory, "coords.prmtop")
         lowest = os.path.join(directory, "lowest")
-        dihedral_csv = os.path.join(os.path.curdir, "dihedrals", "".join(("_".join(comb), ".csv")))
+        dihedral_csv = os.path.join("/home/khs26/rotamer_library", "dihedrals", "".join(("_".join(comb), ".csv")))
         lowest_to_dihedral_csv(prmtop, lowest, dihedral_csv)
