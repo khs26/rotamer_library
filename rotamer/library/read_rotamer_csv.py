@@ -151,13 +151,20 @@ def cluster_angles_kmeans(dataframe, n_clusters):
                                                             n_clusters=n_clusters[i])
         labelled_states[dataframe.columns[i]] = labels
         clusterers[dataframe.columns[i]] = cluster_object
-        # clustered.plot(kind='hist', bins=360, edgecolor='none')
+    #     clustered.plot(kind='hist', bins=360, edgecolor='none', normed=1)
     # plt.show()
     labelled = pd.DataFrame(labelled_states)
     return labelled, clusterers
 
 if __name__ == "__main__":
+    """
+    TODO:
+        - Dump list of cluster centroids for each dihedral.
+        - Reweight probabilities with Boltzmann distribution (at 298K = 0.59kcal/mol).
+        - Tabulate the probabilities.
+    """
     import cPickle
+    import copy
     for amino_acid in amino_acids:
         ok = False
         while not ok:
@@ -165,25 +172,37 @@ if __name__ == "__main__":
             all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
             only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
             joined = pd.concat(only_centre)
-            # joined.iloc[:, 3:].hist(bins=360)
-            # plt.show()
+            # print joined.iloc[:, 3:].shape
+            # print np.resize(np.exp(-joined.iloc[:, 0] / 0.59), joined.iloc[:, 3:].shape).shape
+            # for k,v in joined.iloc[:, 3:].plot(kind='hist', bins=360).__dict__.items():
+            #     print k, v
+            joined.iloc[:, 3:].hist(bins=360, weights=np.exp(-joined.iloc[:, 0] / 0.59).reshape(-1, 1), normed=1, edgecolor='none')
+            # joined.iloc[:, 3:].hist(bins=360, normed=1)
+            plt.show()
             clusters = map(int, raw_input("Cluster proposals: ").split())
             labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
             ok = "y" in raw_input("OK? ")
-            if ok:
-                output = open(''.join([amino_acid, '.pkl']), 'wb')
-                cPickle.dump(clusterers, output, -1)
-                output.close()
-                input = open(''.join([amino_acid, '.pkl']), 'rb')
-                unpickled = cPickle.load(input)
-                print type(unpickled)
-                if clusterers == unpickled:
-                    print "Pickled successfully."
-                    print clusterers
-                else:
-                    print "Didn't pickle."
-                    print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
-                input.close()
+            normalisation = np.sum(np.exp(-joined.iloc[:, 0] / 0.59))
+            for dihedral, dihedral_clusterer in clusterers.items():
+                for i, cluster in enumerate(dihedral_clusterer.cluster_centers_):
+                    print i, cluster, np.sum(np.exp(-joined.iloc[:, 0][dihedral_clusterer.labels_ == i] / 0.59)) / normalisation
+
+            # if ok:
+                # output = open(''.join([amino_acid, '.pkl']), 'wb')
+                # cPickle.dump(clusterers, output, -1)
+                # output.close()
+                # input = open(''.join([amino_acid, '.pkl']), 'rb')
+                # unpickled = cPickle.load(input)
+                # print type(unpickled)
+                # if clusterers == unpickled:
+                #     print "Pickled successfully."
+                #     print clusterers
+                # else:
+                #     print "Didn't pickle."
+                #     print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
+                # input.close()
+                # clusterers2 = copy.deepcopy(clusterers)
+                # print "Copy:", clusterers == clusterers2
     # NDArray of rotamer angles
     as_ndarray = labelled.values
     labels = labelled.drop_duplicates().values
