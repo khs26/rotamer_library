@@ -165,50 +165,48 @@ if __name__ == "__main__":
     """
     import cPickle
     import copy
+    import itertools as it
     for amino_acid in amino_acids:
+        if amino_acid in ("ALA", "GLY"):
+            continue
+        if not amino_acid in ("LEU"):
+            continue
         ok = False
         while not ok:
             arg_csvs = find_csvs(amino_acid)
             all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
             only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
             joined = pd.concat(only_centre)
-            # print joined.iloc[:, 3:].shape
-            # print np.resize(np.exp(-joined.iloc[:, 0] / 0.59), joined.iloc[:, 3:].shape).shape
-            # for k,v in joined.iloc[:, 3:].plot(kind='hist', bins=360).__dict__.items():
-            #     print k, v
             joined.iloc[:, 3:].hist(bins=360, weights=np.exp(-joined.iloc[:, 0] / 0.59).reshape(-1, 1), normed=1, edgecolor='none')
             # joined.iloc[:, 3:].hist(bins=360, normed=1)
-            plt.show()
+            # plt.show()
             clusters = map(int, raw_input("Cluster proposals: ").split())
             labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
-            ok = "y" in raw_input("OK? ")
-            normalisation = np.sum(np.exp(-joined.iloc[:, 0] / 0.59))
-            for dihedral, dihedral_clusterer in clusterers.items():
-                for i, cluster in enumerate(dihedral_clusterer.cluster_centers_):
-                    print i, cluster, np.sum(np.exp(-joined.iloc[:, 0][dihedral_clusterer.labels_ == i] / 0.59)) / normalisation
+            # ok = "y" in raw_input("OK? ")
+            ok = True
+        normalisation = np.sum(np.exp(-joined.iloc[:, 0] / 0.59))
+        weights = np.exp(-joined.iloc[:, 0] / 0.59).values
+        labelled["weight"] = weights
+        states = labelled.iloc[:, :-1].drop_duplicates().values
+        as_ndarray = labelled.iloc[:, :-1].values
+        prob = {}
+        for state in states:
+            angles = []
+            for i in range(len(state)):
+                angles.append(clusterers[labelled.columns.values[i]].cluster_centers_[state[i]][0])
+            prob[tuple(state)] = np.sum(labelled[np.all(state == as_ndarray, axis=1)].iloc[:, -1]) / normalisation
+            print " ".join(["{0: >8.3f}".format(angle) for angle in angles]) + "{0: >7.2f}%".format(100 * prob[tuple(state)])
+        print sum(prob.values())
+            # print labelled[np.all(state == as_ndarray, axis=1)]
+        # print labelled
 
-            # if ok:
-                # output = open(''.join([amino_acid, '.pkl']), 'wb')
-                # cPickle.dump(clusterers, output, -1)
-                # output.close()
-                # input = open(''.join([amino_acid, '.pkl']), 'rb')
-                # unpickled = cPickle.load(input)
-                # print type(unpickled)
-                # if clusterers == unpickled:
-                #     print "Pickled successfully."
-                #     print clusterers
-                # else:
-                #     print "Didn't pickle."
-                #     print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
-                # input.close()
-                # clusterers2 = copy.deepcopy(clusterers)
-                # print "Copy:", clusterers == clusterers2
-    # NDArray of rotamer angles
-    as_ndarray = labelled.values
-    labels = labelled.drop_duplicates().values
-    # Join it up with the phi/psi angles and the energies
-    all_with_labels = pd.concat([pd.DataFrame(joined.iloc[:, :3].values), labelled], axis=1)
-    all_with_labels.columns.values[:3] = joined.columns.values[:3]
-    print all_with_labels[np.logical_and((all_with_labels["2 HIP_chi1"] == 0), (all_with_labels["2 HIP_chi2"] == 0))]
-    for label in labels:
-        print "state:", label, "count:", np.sum(np.all(label == as_ndarray, axis=1))
+    # # NDArray of rotamer angles
+    # as_ndarray = labelled.values
+    # labels = labelled.drop_duplicates().values
+    # # Join it up with the phi/psi angles and the energies
+    # all_with_labels = pd.concat([pd.DataFrame(joined.iloc[:, :3].values), labelled], axis=1)
+    # all_with_labels.columns.values[:3] = joined.columns.values[:3]
+    # # print all_with_labels[np.logical_and((all_with_labels["2 HIP_chi1"] == 0), (all_with_labels["2 HIP_chi2"] == 0))]
+    # print labels
+    # for label in labels:
+    #     print "state:", label, "count:", np.sum(np.all(label == as_ndarray, axis=1))
