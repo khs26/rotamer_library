@@ -159,17 +159,15 @@ def cluster_angles_kmeans(dataframe, n_clusters):
 if __name__ == "__main__":
     """
     TODO:
-        - Dump list of cluster centroids for each dihedral.
-        - Reweight probabilities with Boltzmann distribution (at 298K = 0.59kcal/mol).
-        - Tabulate the probabilities.
+        - Dump list of cluster centroids for each dihedral - DONE
+        - Reweight probabilities with Boltzmann distribution (at 298K = 0.59kcal/mol) - DONE
+        - Tabulate the probabilities - DONE
+        - Fix the dihedral symmetry (e.g. in carboxylate)
     """
-    import cPickle
-    import copy
-    import itertools as it
     for amino_acid in amino_acids:
         if amino_acid in ("ALA", "GLY"):
             continue
-        if not amino_acid in ("LEU"):
+        if not amino_acid in ("ASP"):
             continue
         ok = False
         while not ok:
@@ -178,8 +176,7 @@ if __name__ == "__main__":
             only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
             joined = pd.concat(only_centre)
             joined.iloc[:, 3:].hist(bins=360, weights=np.exp(-joined.iloc[:, 0] / 0.59).reshape(-1, 1), normed=1, edgecolor='none')
-            # joined.iloc[:, 3:].hist(bins=360, normed=1)
-            # plt.show()
+            plt.show()
             clusters = map(int, raw_input("Cluster proposals: ").split())
             labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
             # ok = "y" in raw_input("OK? ")
@@ -196,7 +193,9 @@ if __name__ == "__main__":
                 angles.append(clusterers[labelled.columns.values[i]].cluster_centers_[state[i]][0])
             prob[tuple(state)] = np.sum(labelled[np.all(state == as_ndarray, axis=1)].iloc[:, -1]) / normalisation
             print " ".join(["{0: >8.3f}".format(angle) for angle in angles]) + "{0: >7.2f}%".format(100 * prob[tuple(state)])
-        print sum(prob.values())
+        if not abs(sum(prob.values()) - 1.0) < 0.01:
+            print "PROBLEM"
+            exit()
             # print labelled[np.all(state == as_ndarray, axis=1)]
         # print labelled
 
