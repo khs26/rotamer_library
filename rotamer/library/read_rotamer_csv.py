@@ -100,7 +100,7 @@ def find_gap_in_data(data, width, min, max):
     for bottom in np.linspace(min, max-width, num=nsteps):
         top = bottom + width
         # If our data is all either lower than bottom or greater than top, return (bottom, top)
-        if np.all(np.logical_or(data < bottom, data > top)):
+        if np.all((data < bottom) | (data > top)):
             ret_tuple = (bottom, top)
             break
     return ret_tuple
@@ -117,14 +117,18 @@ def cluster_wrapper(data, algorithm=None, **kwargs):
              - pandas Series with labels in the place of angles.
              - sklearn.cluster object, which can be used to predict cluster identities of individual angles.
     """
-    # Shift data so that there isn't a break in clusters around -180 and 180
-    gap = find_gap_in_data(data, width=0.5, min=-180, max=180)
-    data[data < gap[0]] += 360.0
+    # Shift data so that there isn't a break in clusters around -180 and 180, or -90 and 90 for those with symmetry
+    if any((data < -90.0) | (data > 90.0)):
+        range = 360.0
+    else:
+        range = 180.0
+    gap = find_gap_in_data(data, width=0.2, min=-range/2, max=range/2)
+    data[data < gap[0]] += range
     # Predict clusters
     algo_object = algorithm(**kwargs)
     labels = algo_object.fit_predict(data)
     # Shift data back to (-180, 180)
-    data[data > 180.0] -= 360.0
+    data[data > range/2] -= range
     # Convert labels to a DataFrame
     data_1d = data.transpose()[0]
     label_series = {}
@@ -147,42 +151,54 @@ def cluster_angles_kmeans(dataframe, n_clusters):
     clusterers = {}
     for i, col in enumerate(as_ndarray.transpose()[:]):
         clustered, labels, cluster_object = cluster_wrapper(data=col[np.newaxis, :].transpose(),
+                                                            algorithm=sklearn.cluster.KMeans,
                                                             algorithm=sklearn.cluster.MiniBatchKMeans,
                                                             n_clusters=n_clusters[i])
         labelled_states[dataframe.columns[i]] = labels
         clusterers[dataframe.columns[i]] = cluster_object
-        # clustered.plot(kind='hist', bins=360, edgecolor='none')
-    # plt.show()
+        clustered.plot(kind='hist', bins=360, edgecolor='none')
+    plt.show()
     labelled = pd.DataFrame(labelled_states)
     return labelled, clusterers
 
 if __name__ == "__main__":
     import cPickle
+    import joblib
+    # symmetric_dihedrals = ["ASP_chi2",
+    #                        "GLU_chi3",
+    #                        "ARG_chi5",
+    #                        "LEU_chi2",
+    #                        "PHE_chi2",
+    #                        "TYR_chi2",
+    #                        "VAL_chi1"]
     for amino_acid in amino_acids:
+        if amino_acid in ['ALA', 'GLY']:
+            continue
+        print amino_acid
         ok = False
         while not ok:
             arg_csvs = find_csvs(amino_acid)
             all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
             only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
             joined = pd.concat(only_centre)
-            # joined.iloc[:, 3:].hist(bins=360)
-            # plt.show()
-            clusters = map(int, raw_input("Cluster proposals: ").split())
+            joined.iloc[:, 3:].hist(bins=360, edgecolor='none')
+            plt.show()
+            cluster_props = raw_input("Cluster proposals: ")
+            if "skip" in cluster_props:
+                break
+            clusters = map(int, cluster_props.split())
             labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
             ok = "y" in raw_input("OK? ")
             if ok:
-                output = open(''.join([amino_acid, '.pkl']), 'wb')
+                output = open(''.join(['../data/', amino_acid, '.pkl']), 'wb')
                 cPickle.dump(clusterers, output, -1)
                 output.close()
-                input = open(''.join([amino_acid, '.pkl']), 'rb')
+                input = open(''.join(['../data/', amino_acid, '.pkl']), 'rb')
                 unpickled = cPickle.load(input)
-                print type(unpickled)
-                if clusterers == unpickled:
+                if joblib.hash(clusterers) == joblib.hash(unpickled):
                     print "Pickled successfully."
-                    print clusterers
                 else:
                     print "Didn't pickle."
-                    print unpickled, clusterers, type(unpickled['2 ILE_chi1']), unpickled.values() == clusterers.values()
                 input.close()
     # NDArray of rotamer angles
     as_ndarray = labelled.values

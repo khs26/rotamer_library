@@ -1,6 +1,7 @@
-numpy
-networkx
-pandas
+joblib
 matplotlib
-scipy
+networkx
+numpy
+pandas
 scikit-learn
+scipy
