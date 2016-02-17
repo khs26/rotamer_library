@@ -300,21 +300,17 @@ def parse_topology_file(topology_filename):
     return mol
 
 
-def default_parameters(topology_filename):
-    # should not import something from playground.  should this function
-    # be moved to playground?
-    import playground.group_rotation.amino_acids as amino
-
-    topology_data = read_topology(topology_filename)
-    parsed = create_molecule(topology_data)
-    return group_rotation_dict(parsed, amino.def_parameters)
+# def default_parameters(topology_filename):
+#     # should not import something from playground.  should this function
+#     # be moved to playground?
+#     # import playground.group_rotation.amino_acids as amino
+#
+#     topology_data = read_topology(topology_filename)
+#     parsed = create_molecule(topology_data)
+#     return group_rotation_dict(parsed, amino.def_parameters)
 
 
 if __name__ == "__main__":
-    topology_data = read_topology("/home/khs26/flu.prmtop")
-    mol = create_molecule(topology_data)
-    mol.read_coords("/home/khs26/flu.inpcrd")
-
-    # for atom in mol.atoms:
-    # if atom.name == 'CA' and atom.residue.name == 'ILE':
-    #         ca = atom
+    mol = parse_topology_file("../tests/data/ARG_LYS_ASN.prmtop")
+    mol.read_coords("../tests/data/ARG_LYS_ASN.inpcrd")
+    print [(res, res.get_identity()) for res in sorted(mol.residues.nodes(), key=lambda x: x.index)[1:4]]
