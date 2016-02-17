@@ -100,7 +100,7 @@ def find_gap_in_data(data, width, min, max):
     for bottom in np.linspace(min, max-width, num=nsteps):
         top = bottom + width
         # If our data is all either lower than bottom or greater than top, return (bottom, top)
-        if np.all((data < bottom) | (data > top)):
+        if np.all(np.logical_or(data < bottom, data > top)):
             ret_tuple = (bottom, top)
             break
     return ret_tuple
@@ -117,18 +117,14 @@ def cluster_wrapper(data, algorithm=None, **kwargs):
              - pandas Series with labels in the place of angles.
              - sklearn.cluster object, which can be used to predict cluster identities of individual angles.
     """
-    # Shift data so that there isn't a break in clusters around -180 and 180, or -90 and 90 for those with symmetry
-    if any((data < -90.0) | (data > 90.0)):
-        range = 360.0
-    else:
-        range = 180.0
-    gap = find_gap_in_data(data, width=0.2, min=-range/2, max=range/2)
-    data[data < gap[0]] += range
+    # Shift data so that there isn't a break in clusters around -180 and 180
+    gap = find_gap_in_data(data, width=0.5, min=-180, max=180)
+    data[data < gap[0]] += 360.0
     # Predict clusters
     algo_object = algorithm(**kwargs)
     labels = algo_object.fit_predict(data)
     # Shift data back to (-180, 180)
-    data[data > range/2] -= range
+    data[data > 180.0] -= 360.0
     # Convert labels to a DataFrame
     data_1d = data.transpose()[0]
     label_series = {}
@@ -151,61 +147,65 @@ def cluster_angles_kmeans(dataframe, n_clusters):
     clusterers = {}
     for i, col in enumerate(as_ndarray.transpose()[:]):
         clustered, labels, cluster_object = cluster_wrapper(data=col[np.newaxis, :].transpose(),
-                                                            algorithm=sklearn.cluster.KMeans,
                                                             algorithm=sklearn.cluster.MiniBatchKMeans,
                                                             n_clusters=n_clusters[i])
         labelled_states[dataframe.columns[i]] = labels
         clusterers[dataframe.columns[i]] = cluster_object
-        clustered.plot(kind='hist', bins=360, edgecolor='none')
-    plt.show()
+    #     clustered.plot(kind='hist', bins=360, edgecolor='none', normed=1)
+    # plt.show()
     labelled = pd.DataFrame(labelled_states)
     return labelled, clusterers
 
 if __name__ == "__main__":
-    import cPickle
-    import joblib
-    # symmetric_dihedrals = ["ASP_chi2",
-    #                        "GLU_chi3",
-    #                        "ARG_chi5",
-    #                        "LEU_chi2",
-    #                        "PHE_chi2",
-    #                        "TYR_chi2",
-    #                        "VAL_chi1"]
+    """
+    TODO:
+        - Dump list of cluster centroids for each dihedral - DONE
+        - Reweight probabilities with Boltzmann distribution (at 298K = 0.59kcal/mol) - DONE
+        - Tabulate the probabilities - DONE
+        - Fix the dihedral symmetry (e.g. in carboxylate)
+    """
     for amino_acid in amino_acids:
-        if amino_acid in ['ALA', 'GLY']:
+        if amino_acid in ("ALA", "GLY"):
             continue
-        print amino_acid
+        if not amino_acid in ("ASP"):
+            continue
         ok = False
         while not ok:
             arg_csvs = find_csvs(amino_acid)
             all_dfs = [csv_to_dataframe(csv_name) for csv_name in arg_csvs]
             only_centre = [get_columns_matching(df, r"(energy)|(2 " + amino_acid + ")", True) for df in all_dfs]
             joined = pd.concat(only_centre)
-            joined.iloc[:, 3:].hist(bins=360, edgecolor='none')
+            joined.iloc[:, 3:].hist(bins=360, weights=np.exp(-joined.iloc[:, 0] / 0.59).reshape(-1, 1), normed=1, edgecolor='none')
             plt.show()
-            cluster_props = raw_input("Cluster proposals: ")
-            if "skip" in cluster_props:
-                break
-            clusters = map(int, cluster_props.split())
+            clusters = map(int, raw_input("Cluster proposals: ").split())
             labelled, clusterers = cluster_angles_kmeans(joined.iloc[:, 3:], clusters)
-            ok = "y" in raw_input("OK? ")
-            if ok:
-                output = open(''.join(['../data/', amino_acid, '.pkl']), 'wb')
-                cPickle.dump(clusterers, output, -1)
-                output.close()
-                input = open(''.join(['../data/', amino_acid, '.pkl']), 'rb')
-                unpickled = cPickle.load(input)
-                if joblib.hash(clusterers) == joblib.hash(unpickled):
-                    print "Pickled successfully."
-                else:
-                    print "Didn't pickle."
-                input.close()
-    # NDArray of rotamer angles
-    as_ndarray = labelled.values
-    labels = labelled.drop_duplicates().values
-    # Join it up with the phi/psi angles and the energies
-    all_with_labels = pd.concat([pd.DataFrame(joined.iloc[:, :3].values), labelled], axis=1)
-    all_with_labels.columns.values[:3] = joined.columns.values[:3]
-    print all_with_labels[np.logical_and((all_with_labels["2 HIP_chi1"] == 0), (all_with_labels["2 HIP_chi2"] == 0))]
-    for label in labels:
-        print "state:", label, "count:", np.sum(np.all(label == as_ndarray, axis=1))
+            # ok = "y" in raw_input("OK? ")
+            ok = True
+        normalisation = np.sum(np.exp(-joined.iloc[:, 0] / 0.59))
+        weights = np.exp(-joined.iloc[:, 0] / 0.59).values
+        labelled["weight"] = weights
+        states = labelled.iloc[:, :-1].drop_duplicates().values
+        as_ndarray = labelled.iloc[:, :-1].values
+        prob = {}
+        for state in states:
+            angles = []
+            for i in range(len(state)):
+                angles.append(clusterers[labelled.columns.values[i]].cluster_centers_[state[i]][0])
+            prob[tuple(state)] = np.sum(labelled[np.all(state == as_ndarray, axis=1)].iloc[:, -1]) / normalisation
+            print " ".join(["{0: >8.3f}".format(angle) for angle in angles]) + "{0: >7.2f}%".format(100 * prob[tuple(state)])
+        if not abs(sum(prob.values()) - 1.0) < 0.01:
+            print "PROBLEM"
+            exit()
+            # print labelled[np.all(state == as_ndarray, axis=1)]
+        # print labelled
+
+    # # NDArray of rotamer angles
+    # as_ndarray = labelled.values
+    # labels = labelled.drop_duplicates().values
+    # # Join it up with the phi/psi angles and the energies
+    # all_with_labels = pd.concat([pd.DataFrame(joined.iloc[:, :3].values), labelled], axis=1)
+    # all_with_labels.columns.values[:3] = joined.columns.values[:3]
+    # # print all_with_labels[np.logical_and((all_with_labels["2 HIP_chi1"] == 0), (all_with_labels["2 HIP_chi2"] == 0))]
+    # print labels
+    # for label in labels:
+    #     print "state:", label, "count:", np.sum(np.all(label == as_ndarray, axis=1))
