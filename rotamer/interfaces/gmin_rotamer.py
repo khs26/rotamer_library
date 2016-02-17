@@ -1,16 +1,30 @@
+import joblib
 import re
+import os.path
+import rotamer.topology.read_amber_prmtop as prmtop
 
 kcal_mol_in_joules = 4184
 gas_constant = 8.3145
 
 class RotamerMove():
-    def __init__(self):
+    def __init__(self, pickle_filename=None, prmtop_filename=None, settings_filename=None):
         """
         Initialise from either a file or a pickled RotamerMove instance.
         """
-        self.residues = []
-        self.deps = set()
-        self.temp = None
+        if pickle_filename:
+            self = joblib.load(pickle_filename)
+        elif prmtop_filename:
+            self.parse_prmtop(prmtop_filename)
+            self.moving_residues = []
+            self.deps = set()
+            self.save_file = None
+            if settings_filename:
+                self.read_settings(settings_filename)
+        else:
+            raise ValueError("Either pickle_filename or prmtop_filename must be specified.")
+
+    def parse_prmtop(self, prmtop_filename):
+        self.molecule = prmtop.parse_topology_file(prmtop_filename)
 
     def read_settings(self, settings_filename):
         """
@@ -26,7 +40,7 @@ class RotamerMove():
                 # Go through the possible options
                 # Residue list
                 if re.match("res", tokenized[0]):
-                    self.residues = self.parse_res_list(" ".join(tokenized[1:]))
+                    self.moving_residues = self.parse_res_list(" ".join(tokenized[1:]))
                 # Dependencies
                 elif any([re.match("depend", tok) for tok in tokenized]):
                     if any(["bb" in tok or "backbone" in tok for tok in tokenized]):
@@ -58,6 +72,12 @@ class RotamerMove():
 
         :return:
         """
+        if not self.save_file:
+            import tempfile
+            savedir = tempfile.mkdtemp()
+            self.save_file = os.path.join(savedir, "rotamer.pkl")
+        joblib.dump(self, self.save_file)
+        return self.save_file
 
     def parse_res_list(self, res_list):
         """
@@ -128,6 +148,11 @@ class RotamerMove():
 
 
 if __name__ == "__main__":
-    move = RotamerMove()
+    move = RotamerMove(prmtop_filename="../tests/data/ARG_LYS_ASN.prmtop")
     move.read_settings("../tests/data/example_settings")
-    move.print_settings()
+    # move.print_settings()
+    location = move.save_move()
+    joblib.dump(move, location)
+    move_copy = RotamerMove(pickle_filename=location)
+    move_copy = joblib.load(location)
+    move_copy.print_settings()
