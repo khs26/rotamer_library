@@ -29,17 +29,19 @@ class Dihedral(object):
         """
         current_angle = self.measure_dihedral(coords)
         rotation_angle = value - current_angle
-        # Define one end of the axis and the axis itself
-        coords_1 = coords[self.atoms[1].index]
-        bond_axis = coords[self.atoms[2].index] - coords_1
-        # Create the relevant AffineTransform object
-        trans_to_origin = transforms.translation(-1.0 * coords_1)
-        trans_back = transforms.translation(+1.0 * coords_1)
-        rotation = transforms.proper_rotation(bond_axis,
-                                              rotation_angle,
-                                              affine=True)
-        overall = trans_back * rotation * trans_to_origin
-        return overall(coords)
+        # Define the axis
+        axis = np.vstack([coords[self.atoms[1].index], coords[self.atoms[2].index]])
+        # Create the transform object
+        dihedral_rotation = transforms.general_rotation(axis, rotation_angle, affine=True)
+        # Get the moving coordinates and make sure to only apply the transform to those.
+        moving_indices = [atom.index for atom in self.get_moving_atoms()]
+        moved_coords = dihedral_rotation(coords[moving_indices]).reshape(-1, 3)
+        # Since we have used advanced indexing, we have a copy of the values and need to copy them to the new_coords
+        # array.
+        new_coords = coords.copy()
+        for i, moved_coord in enumerate(moved_coords):
+            new_coords[moving_indices[i]] = moved_coord
+        return new_coords
 
     def get_moving_atoms(self):
         """ Returns a list of moving atoms for a given dihedral.
@@ -121,13 +123,15 @@ if __name__ == "__main__":
     import os.path
     import numpy as np
 
-    topology_data = amber.read_topology(os.path.normpath("/home/khs26/coords.prmtop"))
-    coords = np.array(read_amber_restart(os.path.normpath("/home/khs26/coords.1.inpcrd"))).reshape((-1, 3))
+    topology_data = amber.read_topology(os.path.normpath("../tests/data/ARG_LYS_ASN.prmtop"))
+    coords = np.array(read_amber_restart(os.path.normpath("../tests/data/ARG_LYS_ASN.inpcrd"))).reshape((-1, 3))
     molecule = amber.create_molecule(topology_data)
     phi_psi_dihedrals(molecule)
     sidechain_dihedrals(molecule)
-    for res in sorted(molecule.residues):
+    for res in sorted(molecule.residues, key=lambda x: x.index)[1:4]:
         print "========================"
         print res
         for k, v in res.dihedrals.items():
-            print k, v.measure_dihedral(coords) * 180.0 / np.pi
+            # print k, v.measure_dihedral(coords) * 180.0 / np.pi
+            new_coords = v.set_dihedral(coords, -45.0 * np.pi / 180.0)
+            print k, v.measure_dihedral(coords) * 180.0 / np.pi, v.measure_dihedral(new_coords) * 180.0 / np.pi
