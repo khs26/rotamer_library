@@ -71,6 +71,19 @@ class Residue(object):
                 self.identity, self.atom_map = ident[self], atom_map[self]
         return self.identity
 
+    def get_coords(self):
+        """
+        Get a list of atomic coordinates for the residue.
+        """
+        return [atom.coords for atom in self.atoms]
+
+    def set_coords(self, new_coords):
+        """
+        Set new coordinates for the residue's atoms.
+        """
+        for i, atom in enumerate(self.atoms):
+            atom.coords = np.array(new_coords[i])
+
 
 class Molecule(object):
     """ Molecule defined from the AMBER topology file. """
@@ -314,3 +327,12 @@ if __name__ == "__main__":
     mol = parse_topology_file("../tests/data/ARG_LYS_ASN.prmtop")
     mol.read_coords("../tests/data/ARG_LYS_ASN.inpcrd")
     print [(res, res.get_identity()) for res in sorted(mol.residues.nodes(), key=lambda x: x.index)[1:4]]
+    for res in mol.residues:
+        if res.identity is "LYS":
+            print res
+            old_coords = res.get_coords()
+            new_coords = [np.array([coord[0] + 2.534, coord[1], coord[2]]) for coord in old_coords]
+            res.set_coords(new_coords)
+            print old_coords
+            print res.get_coords()
+
