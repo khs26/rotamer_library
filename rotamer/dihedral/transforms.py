@@ -185,6 +185,22 @@ def translation(translation):
     trans = AffineTransform(translation=np.array(translation))
     return trans
 
+def general_rotation(axis, angle, affine=False, right_handed=True):
+    """
+    Returns a linear or affine transformation object which corresponds to an improper
+    rotation (i.e. a rotation coupled with a reflection about the axis' orthogonal
+    plane) about the given axis through the given angle. Unlike the other rotations, this
+    axis does not have to pass through the origin. By default, the rotation is
+    right-handed (i.e. counterclockwise) and returns a LinearTransform object.
+    """
+    # Move to the origin
+    trans_start = translation(-axis[0])
+    # Rotate about the axis (also transformed to the origin)
+    rotation = proper_rotation(axis[1] - axis[0], angle, affine, right_handed)
+    # Move back to the original location
+    trans_end = translation(axis[0])
+    return trans_end * rotation * trans_start
+
 # -------------------------------------- MAIN -----------------------------------------        
 
 if __name__ == "__main__":
@@ -205,3 +221,4 @@ if __name__ == "__main__":
     dihedral_move = trans_back * proper * trans_forward
     print inverse(coords)
     print improper(coords)
+    print dihedral_move(coords) - general_rotation(np.array([[0, -4, 0], [1, -4, 0]]), rot, affine=True)(coords)
