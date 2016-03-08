@@ -75,14 +75,14 @@ class Residue(object):
         """
         Get a list of atomic coordinates for the residue.
         """
-        return [atom.coords for atom in self.atoms]
+        return np.array([atom.coords for atom in self.atoms])
 
     def set_coords(self, new_coords):
         """
         Set new coordinates for the residue's atoms.
         """
         for i, atom in enumerate(self.atoms):
-            atom.coords = np.array(new_coords[i])
+            atom.coords = new_coords[i]
 
 
 class Molecule(object):
@@ -331,7 +331,7 @@ if __name__ == "__main__":
         if res.identity is "LYS":
             print res
             old_coords = res.get_coords()
-            new_coords = [np.array([coord[0] + 2.534, coord[1], coord[2]]) for coord in old_coords]
+            new_coords = old_coords + np.array([2.534, 0, 0])
             res.set_coords(new_coords)
             print old_coords
             print res.get_coords()
